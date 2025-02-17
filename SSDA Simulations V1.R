@@ -1,5 +1,5 @@
 #################################################################################################################
-### Title: Project 2 - Sim 1 V3
+### Title: SubComposition Scanning for Differential Abundance testing - Simulation Script V1
 ### Current Analyst: Alexander Alsup
 ### Last Updated: (11/12/2024) 
 ### Notes: 
