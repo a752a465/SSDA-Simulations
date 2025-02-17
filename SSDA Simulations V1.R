@@ -115,93 +115,6 @@ ANCOMBC2.test <- function(data.proportions=data.proportions,group=group,ncell=nc
   result <- data.frame("Sample_Size"=N,"Method"="ANCOMBC2","Power"=model_power,"FDR"=model_fdr)
   return(result)
 }
-## TEST: Median Test: New Test -----
-  # f even
-f <- Vectorize(function(m, n) {
-  if (isTRUE(m==1)) { # (Optional)
-    y <- n^2 * choose(2*n, n) * (1/2)^(2*n-1) / (2*n-1)
-    return(y)
-  }
-  g <- 2 * log(n) + lchoose(2*n, n) # A common factor, potentially very large
-  j <- seq_len(n) - 1               # The sum indices from 0 through n-1
-  x <- (n+j) * log(m / 2) - log(n+j) + lchoose(n-1, j) + (n-1-j) * log(1-m)
-  sum(exp(g + x))
-}, "m")
-  # Median p-value distribution for even-sized sample
-f.M <- function(m, n, theta=0) {
-  x <- pmax(0, pmin(1, m - theta)) # Focus on the interval [0,1]
-  x <- ifelse(x > 1/2, 1-x, x)     # Apply symmetry
-  f(2*x, n)*2                      # Rescale by a factor of 2
-}
-  # P-value for even sample size
-p_value_even <- function(m,n){
-  if(is.na(m)){
-    NA
-  } else{
-    integrate(f.M,lower=0,upper=m,n=n)$value
-  }
-}
-  # Median Test
-median_test <- function(median_length=median_length,pval_median=pval_median){
-  if(median_length %% 2 == 1){
-    shape <- (median_length-1)/2+1
-    mediantest_pvalues <- pbeta(pval_median,shape,shape,lower.tail=TRUE)
-  } else {
-    shape <- median_length/2
-    mediantest_pvalues <- as.numeric(lapply(pval_median,function(x) p_value_even(x,shape)))
-  }
-  return(mediantest_pvalues)
-}
-# Omission function
-omit_median <- function(pval_median=pval_median,alr_pvals_test=alr_pvals_test){
-  omit_index <- which(pval_median==min(pval_median,na.rm=TRUE))
-  alr_pvals_test[omit_index,] <- NA ; alr_pvals_test[,omit_index] <- NA 
-  return(alr_pvals_test)
-}
-  # Full Function
-Median_Test_Full <- function(ncell=ncell,data.proportions=data.proportions,group=group,N=N,cell.type=cell.type,power_cell=power_cell,fdr_cell=fdr_cell){
-  # Output Objects
-  model_test <- NULL
-  model_pvals <- NULL
-  model_pvals_corrected <- NULL
-  # MEDIAN TEST
-  # ALR P-values
-  alr_pvals<- data.frame(matrix(NA,nrow=ncol(data.proportions),ncol=ncol(data.proportions)))
-  dimnames(alr_pvals) <- list(cell.type,cell.type)
-  for(i in 1:ncell){
-    y1 <- log(data.proportions)
-    y = apply(y1, 2, function(x) x - y1[,i])  
-    x <- as.factor(group) 
-    alr_lm <- summary(lm(formula = y ~ x, data = data.frame(X = x)))
-    alr_pvals[i,] <- c(unlist(lapply(coef(alr_lm), function(x)x[2,4])))
-  }
-  diag(alr_pvals) <- NA
-  # ALR P-value Correction
-  alr_pvals <- apply(alr_pvals, 1,function(x) p.adjust(x,method="BH")) #Correction on the Sub-hypothesis test p-values
-  # Save ALR P-value Object for test
-  alr_pvals_test <- alr_pvals
-  ## Median Subcomposition Test ----
-  sequence_matrix <- matrix(NA,nrow=ncell,ncol=ncell)
-  dimnames(sequence_matrix) <- list(paste("Step",seq(1,ncell,1)),cell.type)
-  median_test_pvals <- c(0,0,0);i <- 1
-  # Loop
-  while(min(median_test_pvals,na.rm=TRUE)<=0.05){
-    pval_median <- apply(alr_pvals_test, 1,function(x) median(x,na.rm=TRUE))
-    median_length <- length(na.omit(pval_median))
-    median_test_pvals <- median_test(median_length=median_length,pval_median=pval_median)
-    median_test_pvals <- p.adjust(median_test_pvals,method="bonferroni") #Correction on the Median test p-values 
-    sequence_matrix[i,] <- median_test_pvals
-    alr_pvals_test <- omit_median(pval_median=pval_median,alr_pvals_test=alr_pvals_test)
-    i <- i+1
-  } 
-  #sequence_matrix <- as.data.frame(sequence_matrix[rowSums(sequence_matrix,na.rm=TRUE)!=0,])
-  model_test <- apply(sequence_matrix,2,function(x) min(x,na.rm=TRUE))
-  model_test <- ifelse(model_test<= 0.05,1,0)
-  model_power <- sum(model_test[power_cell])
-  model_fdr <- sum(model_test[(fdr_cell)])
-  result <- data.frame("Sample_Size"=N,"Method"="Median","Power"=model_power,"FDR"=model_fdr)
-  return(result)
-}
 ## TEST: Current Standard Test: T-test with Correction for multiple testing and log-transformed proportions -----
 Standard.test <- function(data.proportions=data.proportions,group=group,ncell=ncell,N=N,power_cell=power_cell,fdr_cell=fdr_cell){
   model_pvals <- NULL
@@ -278,7 +191,7 @@ Dirichlet.Regression <- function(data.proportions=data.proportions,group=group,n
   })
   return(result)
 }
-## TEST: Fisher Sub-composition Scanning ------
+## TEST: SSDA Function ------
 # Fisher Statistic Calculation 
 fisher_statistic_calc <- function(p_values){
   if(length(na.omit(p_values))==0){
