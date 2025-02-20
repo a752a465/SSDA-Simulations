@@ -100,7 +100,7 @@ SSDA <- function(test_matrix=test_matrix){
   ALR_Test_Matrix_DA$`Pvalue` <- pchisq(ALR_Test_Matrix_DA$F_statistic,ALR_Test_Matrix_DA$df,lower.tail=FALSE)
   #ALR_Test_Matrix_DA=ALR_Test_Matrix_DA[,-DA_indices]
   # Packaging Results
-  results <- list("Sequence Matrix"=sequence_matrix,"Fisher's Method With non-DA Sub-composition"=ALR_Test_Matrix_DA)
+  results <- list("Sequence Matrix"=SSDA_Sequence_Matrix,"Fisher's Method With non-DA Sub-composition"=ALR_Test_Matrix_DA)
   return(results)
 }
 
