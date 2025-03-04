@@ -1,7 +1,7 @@
 #################################################################################################################
 ### Title: SubComposition Scanning for Differential Abundance testing - Simulation Script V1
 ### Current Analyst: Alexander Alsup
-### Last Updated: (11/12/2024) 
+### Last Updated: (03/04/2025) 
 ### Notes: 
 #################################################################################################################
 
@@ -63,28 +63,6 @@ Poisson_effect <- function(lambda11=lambda11,lambda22=lambda22){
   Cohens_D <- (lambda11-lambda22)/(sqrt(lambda11+lambda22))
   return(Cohens_D)
 }
-## TEST: ANCOM Test Basic: Simple T-test equivalent -----
-ANCOM.test <- function(ncell=ncell,data.proportions=data.proportions,group=group,N=N){
-  power_cell <- which(lambda1 != lambda2)
-  fdr_cell <- ncell
-  model_test <- NULL
-  model_pvals <- NULL
-  model_pvals_corrected <- NULL
-  for(i in 1:ncell){
-    y1 <- log(data.proportions)
-    y = apply(y1, 2, function(x) x - y1[,i])[,-i]  
-    x <- as.factor(group) 
-    lm <-summary(lm(formula = y ~ x, data = data.frame(X = x)))
-    model_pvals <- c(unlist(lapply(coef(lm), function(x)x[2,4])))
-    model_pvals_corrected <- p.adjust(model_pvals,"BH")
-    W <- sum(model_pvals_corrected <= 0.05)
-    model_test[i] <- ifelse(W>= W.star,1,0)   
-  } 
-  model_power <- sum(model_test[power_cell])
-  model_fdr <- sum(model_test[(fdr_cell)])
-  result <- data.frame("Sample_Size"=N,"Method"="ANCOM","Power"=model_power,"FDR"=model_fdr)
-  return(result)
-}
 ## TEST: ANCOM BC2: Using the ANCOMBC Package ----
 ANCOMBC2.test <- function(data.proportions=data.proportions,group=group,ncell=ncell,N=N,power_cell=power_cell,fdr_cell=fdr_cell){
   # Results objects
@@ -99,15 +77,17 @@ ANCOMBC2.test <- function(data.proportions=data.proportions,group=group,ncell=nc
   otu_table <- data.proportions.ancombc2
   ps <- phyloseq(otu_table(otu_table,taxa_are_rows=FALSE),sample_data(sample_data))
   # ANCOM BC2
-  output = ancombc2(data = ps, assay_name = "counts",
-                    fix_formula = "group",
-                    p_adj_method = "holm", pseudo_sens = FALSE,
-                    prv_cut = 0.10, s0_perc = 0.05,
-                    group = "group",
-                    alpha = 0.05,
-                    iter_control = list(tol = 1e-5, max_iter = 10,verbose = FALSE),
-                    em_control = list(tol = 1e-5, max_iter = 10),
-                    mdfdr_control = list(fwer_ctrl_method = "holm", B = 50))
+  suppressMessages(suppressWarnings({
+    output = ancombc2(data = ps, assay_name = "counts",
+                      fix_formula = "group",
+                      p_adj_method = "holm", pseudo_sens = FALSE,
+                      prv_cut = 0.10, s0_perc = 0.05,
+                      group = "group",
+                      alpha = 0.05,
+                      iter_control = list(tol = 1e-5, max_iter = 10,verbose = FALSE),
+                      em_control = list(tol = 1e-5, max_iter = 10),
+                      mdfdr_control = list(fwer_ctrl_method = "holm", B = 50))
+  }))
   res_prim = output$res; model_pvals=res_prim$q_groupB
   model_test <- ifelse(model_pvals<= 0.05,1,0) 
   model_power <- sum(model_test[power_cell])
@@ -115,7 +95,7 @@ ANCOMBC2.test <- function(data.proportions=data.proportions,group=group,ncell=nc
   result <- data.frame("Sample_Size"=N,"Method"="ANCOMBC2","Power"=model_power,"FDR"=model_fdr)
   return(result)
 }
-## TEST: Current Standard Test: T-test with Correction for multiple testing and log-transformed proportions -----
+## TEST: Current Standard Test: Regression Directly on log-transformed proportions -----
 Standard.test <- function(data.proportions=data.proportions,group=group,ncell=ncell,N=N,power_cell=power_cell,fdr_cell=fdr_cell){
   model_pvals <- NULL
   x <- as.factor(group)
@@ -308,7 +288,7 @@ Simulation <- function(Nsims=Nsims,sample.size=sample.size,lambda1=lambda1,lambd
   return(list(K_compare,Full_Results))
 }
 #######################################################
-# SIMULATIONS: Real-World Example ----
+# SIMULATION 1: Real-World Example ----
 #######################################################
 ## Simulation: ONE DIFFERENTIALLY ABUNDANT CELL TYPE/ 5 CELL TYPES -----
 ### Global Simulation Parameters 
@@ -324,6 +304,7 @@ Results=data.frame("Sample_Size"=NA,"Method"=NA,"Power"=NA,"FDR"=NA,"Abundance"=
 ### Set 1: Minor Effect Size
 lambda1 <- c(2.8, 2.4, 0.44, 0.32, 0.04)
 lambda2 <- c(lambda1[1]-0.5, 2.4, 0.44, 0.32, 0.04);Effect=Poisson_effect(lambda1[1],lambda2[1])
+lambda1=lambda1*50;lambda2=lambda2*50
 sim <- Simulation(Nsims=Nsims,sample.size=sample.size,lambda1=lambda1,lambda2=lambda2,W.star=W.star,ncell=ncell,power_cell=power_cell,fdr_cell=fdr_cell)
   #
 Effect=Poisson_effect(lambda1[power_cell],lambda2[power_cell]);Effect_2=paste0(lambda1[power_cell],"/",lambda2[power_cell])
@@ -332,6 +313,7 @@ sim=sim[[1]];sim<-sim%>%mutate(Abundance="High",Effect=Effect,Effect_2=Effect_2)
 # Set 2: Moderate Effect Size
 lambda1 <- c(2.8, 2.4, 0.44, 0.32, 0.04)
 lambda2 <- c(lambda1[1]-1.0, 2.4, 0.44, 0.32, 0.04);Effect=Poisson_effect(lambda1[1],lambda2[1])
+lambda1=lambda1*50;lambda2=lambda2*50
 sim <- Simulation(Nsims=Nsims,sample.size=sample.size,lambda1=lambda1,lambda2=lambda2,W.star=W.star,ncell=ncell,power_cell=power_cell,fdr_cell=fdr_cell)
 #
 Effect=Poisson_effect(lambda1[power_cell],lambda2[power_cell]);Effect_2=paste0(lambda1[power_cell],"/",lambda2[power_cell])
@@ -340,6 +322,7 @@ sim=sim[[1]];sim<-sim%>%mutate(Abundance="High",Effect=Effect,Effect_2=Effect_2)
 # Set 3: Large Effect Size
 lambda1 <- c(2.8, 2.4, 0.44, 0.32, 0.04)
 lambda2 <- c(lambda1[1]-1.5, 2.4, 0.44, 0.32, 0.04);Effect=Poisson_effect(lambda1[1],lambda2[1])
+lambda1=lambda1*50;lambda2=lambda2*50
 sim <- Simulation(Nsims=Nsims,sample.size=sample.size,lambda1=lambda1,lambda2=lambda2,W.star=W.star,ncell=ncell,power_cell=power_cell,fdr_cell=fdr_cell)
 #
 Effect=Poisson_effect(lambda1[power_cell],lambda2[power_cell]);Effect_2=paste0(lambda1[power_cell],"/",lambda2[power_cell])
@@ -357,7 +340,7 @@ Full_Results <- Full_Results %>%
 ## Save Final Results -----
 if(Outputs==TRUE){
   data_list <- list(Results=Results,Results_Full=Full_Results)
-  filename <- "Sim1_RealWorld_1Diff_5Types_V2.xlsx"
+  filename <- "Sim1_V2.xlsx"
   write_xlsx(data_list,paste0(Outputs_path,filename))
 }
 
@@ -443,7 +426,7 @@ Full_Results <- Full_Results %>%
 ## Save Final Results -----
 if(Outputs==TRUE){
   data_list <- list(Results=Results,Results_Full=Full_Results)
-  filename <- "Sim1_General_1Diff_15Types_V2.xlsx"
+  filename <- "Sim2_V2.xlsx"
   write_xlsx(data_list,paste0(Outputs_path,filename))
 }
 
@@ -497,7 +480,7 @@ Full_Results <- Full_Results %>%
 ## Save Final Results ----
 if(Outputs==TRUE){
   data_list <- list(Results=Results,Results_Full=Full_Results)
-  filename <- "Sim1_General_2Diff_15Types_V2.xlsx"
+  filename <- "Sim3_V2.xlsx"
   write_xlsx(data_list,paste0(Outputs_path,filename))
 }
 
